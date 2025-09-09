@@ -37,4 +37,59 @@
       <div class="grid2">
         <div>
           <label>Token In (USDT on Base)</label>
-          <input id="tokenIn" plac
+          <input id="tokenIn" placeholder="ใส่สัญญา USDT บน Base" spellcheck="false"/>
+        </div>
+        <div>
+          <label>Token Out</label>
+          <input id="tokenOut" value="0xdC200537D99d8b4f0C89D59A68e29b67057d2c5F" spellcheck="false"/>
+          <small class="muted">THBT</small>
+        </div>
+      </div>
+
+      <div class="grid3">
+        <div>
+          <label>Amount In</label>
+          <input id="amountIn" type="number" min="0" step="0.000001" placeholder="100"/>
+        </div>
+        <div>
+          <label>Pool Fee (v3)</label>
+          <input id="fee" type="number" min="100" step="100" value="3000"/>
+          <small class="muted">500 = 0.05% • 3000 = 0.3% • 10000 = 1%</small>
+        </div>
+        <div>
+          <label>Deadline (mins)</label>
+          <input id="deadline" type="number" min="1" step="1" value="10"/>
+        </div>
+      </div>
+
+      <div class="grid2">
+        <div>
+          <label>Slippage (%)</label>
+          <input id="slippage" type="number" min="0" step="0.1" value="0.5"/>
+        </div>
+        <div>
+          <label>Quoter (Base)</label>
+          <input id="quoter" value="0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a" spellcheck="false"/>
+        </div>
+      </div>
+
+      <div class="row">
+        <button id="quoteBtn" class="btn blue">Get Quote</button>
+        <div id="quoteBox" class="quote">—</div>
+      </div>
+
+      <div class="row">
+        <button id="approveBtn" class="btn">Approve</button>
+        <button id="swapBtn" class="btn green">Swap</button>
+      </div>
+    </main>
+
+    <section class="card">
+      <h2>Logs</h2>
+      <pre id="logs" class="logs"></pre>
+    </section>
+  </div>
+
+  <script src="./script.js"></script>
+</body>
+</html>
