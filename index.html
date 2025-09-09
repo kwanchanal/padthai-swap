@@ -3,11 +3,11 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>PadThai Swap (Base • Uniswap v3)</title>
+  <title>PadThai Swap • Base (Router direct)</title>
   <link rel="stylesheet" href="./style.css"/>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;700&display=swap" rel="stylesheet">
 
-  <!-- UMD builds (ไม่ต้อง npm) -->
+  <!-- UMD builds (no npm) -->
   <script src="https://unpkg.com/web3modal@1.9.12/dist/index.js"></script>
   <script src="https://unpkg.com/@walletconnect/web3-provider@1.8.0/dist/umd/index.min.js"></script>
   <script src="https://unpkg.com/ethers@5.7.2/dist/ethers.umd.min.js"></script>
@@ -23,38 +23,40 @@
     </header>
 
     <main class="card">
+      <h2 style="margin:0 0 8px">Base • Direct Router Swap (เหมือน bahtswap)</h2>
+
       <div class="grid2">
         <div>
           <label>Network</label>
           <div id="netLabel" class="pill">Not connected</div>
         </div>
         <div>
-          <label>Router (Uniswap v3 • Base)</label>
-          <input id="router" value="0x2626664c2603336E57B271c5C0b26F421741e481" spellcheck="false"/>
+          <label>Router (Base)</label>
+          <input id="router" value="0x6fF5693b99212Da76ad316178A184AB56D299b43" spellcheck="false"/>
+          <small class="muted">จะเรียกตรงไปที่ router นี้</small>
         </div>
       </div>
 
       <div class="grid2">
         <div>
           <label>Token In (USDT on Base)</label>
-          <input id="tokenIn" placeholder="ใส่สัญญา USDT บน Base" spellcheck="false"/>
+          <input id="tokenIn" value="0x2d1aDB45Bb1d7D2556c6558aDb76CFD4F9F4ed16" spellcheck="false"/>
         </div>
         <div>
-          <label>Token Out</label>
+          <label>Token Out (THBT)</label>
           <input id="tokenOut" value="0xdC200537D99d8b4f0C89D59A68e29b67057d2c5F" spellcheck="false"/>
-          <small class="muted">THBT</small>
         </div>
       </div>
 
       <div class="grid3">
         <div>
-          <label>Amount In</label>
+          <label>Amount In (USDT)</label>
           <input id="amountIn" type="number" min="0" step="0.000001" placeholder="100"/>
         </div>
         <div>
-          <label>Pool Fee (v3)</label>
+          <label>Pool Fee</label>
           <input id="fee" type="number" min="100" step="100" value="3000"/>
-          <small class="muted">500 = 0.05% • 3000 = 0.3% • 10000 = 1%</small>
+          <small class="muted">500=0.05% • 3000=0.3% • 10000=1%</small>
         </div>
         <div>
           <label>Deadline (mins)</label>
@@ -68,8 +70,9 @@
           <input id="slippage" type="number" min="0" step="0.1" value="0.5"/>
         </div>
         <div>
-          <label>Quoter (Base)</label>
+          <label>Quoter (optional, v3 style)</label>
           <input id="quoter" value="0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a" spellcheck="false"/>
+          <small class="muted">ใช้สำหรับ Get Quote; ถ้า router เป็น v4-only อาจใช้ไม่ได้</small>
         </div>
       </div>
 
