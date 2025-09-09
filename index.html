@@ -1,22 +1,28 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Simple Swap MVP</title>
-  <link rel="stylesheet" href="./style.css" />
-  <!-- DM Sans (เผื่อชอบฟอนต์นี้) -->
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>PadThai Swap • Web3Modal</title>
+  <link rel="stylesheet" href="./style.css"/>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;700&display=swap" rel="stylesheet">
-  <!-- Ethers v6 -->
-  <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.2/dist/ethers.min.js"
-          integrity="sha384-Kqf6gB7U8qP5hP6m3a7d2mL8Ck0jQbGQx3cWcCqP7zq3FJtV0D3qkG0gNQ6b0S9I"
-          crossorigin="anonymous"></script>
+
+  <!-- ===== Dependencies (CDN) ===== -->
+  <!-- Web3Modal v1 (vanilla JS) -->
+  <script src="https://unpkg.com/web3modal@1.9.12/dist/index.js"></script>
+  <!-- WalletConnect provider (v1) -->
+  <script src="https://unpkg.com/@walletconnect/web3-provider@1.8.0/dist/umd/index.min.js"></script>
+  <!-- Ethers v5 (ใช้คู่กับ Web3Modal v1 ได้ง่ายสุด) -->
+  <script src="https://unpkg.com/ethers@5.7.2/dist/ethers.umd.min.js"></script>
 </head>
 <body>
   <div class="container">
     <header>
-      <h1>Simple Swap MVP</h1>
-      <button id="connectButton" class="btn">Connect Wallet</button>
+      <h1>PadThai Swap</h1>
+      <div class="actions">
+        <button id="connectButton" class="btn">Connect Wallet</button>
+        <button id="disconnectButton" class="btn btn-ghost">Disconnect</button>
+      </div>
     </header>
 
     <section class="card">
@@ -29,7 +35,7 @@
         <label>Router (Uniswap V2)</label>
         <input id="routerAddress" type="text"
                value="0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D"
-               spellcheck="false" />
+               spellcheck="false"/>
       </div>
 
       <div class="grid">
@@ -37,27 +43,27 @@
           <label>From</label>
           <div class="tokenBox">
             <div class="tokenSymbol">ETH</div>
-            <input id="amountIn" type="number" min="0" step="0.0001" placeholder="0.1" />
+            <input id="amountIn" type="number" min="0" step="0.0001" placeholder="0.1"/>
           </div>
         </div>
 
         <div>
           <label>To (ERC20 token)</label>
           <input id="tokenOut" type="text"
-                 value="0x6B175474E89094C44Da98b954EedeAC495271d0F" 
-                 spellcheck="false" />
-          <small class="muted">Default: DAI</small>
+                 value="0x6B175474E89094C44Da98b954EedeAC495271d0F"
+                 spellcheck="false"/>
+          <small class="muted">Default: DAI (Ethereum mainnet)</small>
         </div>
       </div>
 
       <div class="grid">
         <div>
           <label>Slippage (%)</label>
-          <input id="slippage" type="number" min="0" step="0.1" value="0.5" />
+          <input id="slippage" type="number" min="0" step="0.1" value="0.5"/>
         </div>
         <div>
           <label>Deadline (minutes)</label>
-          <input id="deadlineMins" type="number" min="1" step="1" value="10" />
+          <input id="deadlineMins" type="number" min="1" step="1" value="10"/>
         </div>
       </div>
 
@@ -75,7 +81,7 @@
     </section>
 
     <footer>
-      <span>🔧 MVP: Direct call to Uniswap V2 Router (swapExactETHForTokens)</span>
+      <span>Wallets: Injected (MetaMask) & WalletConnect • Uniswap V2 Router • ethers v5</span>
     </footer>
   </div>
 
