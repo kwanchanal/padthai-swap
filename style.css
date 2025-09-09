@@ -1,6 +1,6 @@
-:root{
+ช:root{
   --bg:#0b0d10; --panel:#141820; --panel2:#1b2130; --text:#eef2f7; --muted:#9aa4b2;
-  --accent:#6ee7b7; --accent2:#60a5fa; --danger:#ef4444; --border:#263042;
+  --accent:#6ee7b7; --accent2:#60a5fa; --border:#263042;
 }
 *{ box-sizing:border-box }
 body{
@@ -45,6 +45,6 @@ input::placeholder{ color:#6b7280 }
 
 .quoteBox{ display:flex; align-items:center; gap:12px; margin:8px 0 14px; }
 .quoteText{ padding:10px 12px; background:#0f1320; border:1px solid var(--border); border-radius:10px; min-height:44px; display:flex; align-items:center; color:#cbd5e1; }
-.logArea{ height:220px; background:#0f1320; border:1px solid var(--border); border-radius:12px; padding:12px; overflow:auto; white-space:pre-wrap; }
+.logArea{ height:240px; background:#0f1320; border:1px solid var(--border); border-radius:12px; padding:12px; overflow:auto; white-space:pre-wrap; }
 footer{ display:flex; justify-content:center; color:var(--muted); margin-top:20px; font-size:14px; }
 @media (max-width:720px){ .grid{ grid-template-columns:1fr } }
