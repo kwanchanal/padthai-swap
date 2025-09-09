@@ -3,148 +3,38 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>PadThai Swap • Web3Modal</title>
+  <title>PadThai Swap (Base • Uniswap v3)</title>
   <link rel="stylesheet" href="./style.css"/>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;700&display=swap" rel="stylesheet">
 
-  <!-- Web3Modal v1 + WalletConnect + ethers v5 -->
+  <!-- UMD builds (ไม่ต้อง npm) -->
   <script src="https://unpkg.com/web3modal@1.9.12/dist/index.js"></script>
   <script src="https://unpkg.com/@walletconnect/web3-provider@1.8.0/dist/umd/index.min.js"></script>
   <script src="https://unpkg.com/ethers@5.7.2/dist/ethers.umd.min.js"></script>
 </head>
 <body>
-  <div class="container">
-    <header>
+  <div class="wrap">
+    <header class="top">
       <h1>PadThai Swap</h1>
       <div class="actions">
-        <button id="connectButton" class="btn">Connect Wallet</button>
-        <button id="disconnectButton" class="btn btn-ghost">Disconnect</button>
+        <button id="connectBtn" class="btn">Connect</button>
+        <button id="disconnectBtn" class="btn ghost">Disconnect</button>
       </div>
     </header>
 
-    <!-- ===== Card #1: Ethereum + Uniswap V2 (คงของเดิม) ===== -->
-    <section class="card">
-      <div class="row">
-        <label>Network</label>
-        <div id="networkLabel" class="pill">Not connected</div>
-      </div>
-
-      <div class="row">
-        <label>Router (Uniswap V2)</label>
-        <input id="routerAddress" type="text"
-               value="0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D"
-               spellcheck="false"/>
-      </div>
-
-      <div class="grid">
+    <main class="card">
+      <div class="grid2">
         <div>
-          <label>From</label>
-          <div class="tokenBox">
-            <div class="tokenSymbol">ETH</div>
-            <input id="amountIn" type="number" min="0" step="0.0001" placeholder="0.1"/>
-          </div>
+          <label>Network</label>
+          <div id="netLabel" class="pill">Not connected</div>
         </div>
-
         <div>
-          <label>To (ERC20 token)</label>
-          <input id="tokenOut" type="text"
-                 value="0x6B175474E89094C44Da98b954EedeAC495271d0F"
-                 spellcheck="false"/>
-          <small class="muted">Default: DAI (Ethereum mainnet)</small>
+          <label>Router (Uniswap v3 • Base)</label>
+          <input id="router" value="0x2626664c2603336E57B271c5C0b26F421741e481" spellcheck="false"/>
         </div>
       </div>
 
-      <div class="grid">
-        <div>
-          <label>Slippage (%)</label>
-          <input id="slippage" type="number" min="0" step="0.1" value="0.5"/>
-        </div>
-        <div>
-          <label>Deadline (minutes)</label>
-          <input id="deadlineMins" type="number" min="1" step="1" value="10"/>
-        </div>
-      </div>
-
-      <div class="quoteBox">
-        <button id="quoteButton" class="btn btn-secondary">Get Quote</button>
-        <div id="quoteText" class="quoteText">—</div>
-      </div>
-
-      <button id="swapButton" class="btn btn-primary">Swap</button>
-    </section>
-
-    <!-- ===== Card #2: Base + Uniswap V3 (exactInputSingle) USDT -> THBT ===== -->
-    <section class="card">
-      <h2 style="margin:0 0 8px">PadThai Swap • Base • Uniswap V3 (USDT → THBT)</h2>
-
-      <div class="row">
-        <label>Network</label>
-        <div id="baseNetworkLabel" class="pill">Not connected</div>
-      </div>
-
-      <div class="row">
-        <label>SwapRouter02 (Uniswap V3)</label>
-        <input id="baseRouter" type="text"
-               value="0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45"
-               spellcheck="false"/>
-      </div>
-
-      <div class="grid">
+      <div class="grid2">
         <div>
           <label>Token In (USDT on Base)</label>
-          <input id="baseTokenIn" type="text"
-                 placeholder="USDT address on Base"
-                 spellcheck="false"/>
-        </div>
-        <div>
-          <label>Token Out (THBT on Base)</label>
-          <input id="baseTokenOut" type="text"
-                 value="0xdC200537D99d8b4f0C89D59A68e29b67057d2c5F"
-                 spellcheck="false"/>
-          <small class="muted">THBT</small>
-        </div>
-      </div>
-
-      <div class="grid">
-        <div>
-          <label>Pool Fee (v3) — e.g. 3000 = 0.3%</label>
-          <input id="baseFee" type="number" min="100" step="100" value="3000"/>
-        </div>
-        <div>
-          <label>Amount In (USDT)</label>
-          <input id="baseAmountIn" type="number" min="0" step="0.000001" placeholder="100"/>
-        </div>
-      </div>
-
-      <div class="grid">
-        <div>
-          <label>Slippage (%)</label>
-          <input id="baseSlippage" type="number" min="0" step="0.1" value="0.5"/>
-        </div>
-        <div>
-          <label>Deadline (minutes)</label>
-          <input id="baseDeadlineMins" type="number" min="1" step="1" value="10"/>
-        </div>
-      </div>
-
-      <div class="quoteBox">
-        <button id="baseQuoteButton" class="btn btn-secondary">Get Quote</button>
-        <div id="baseQuoteText" class="quoteText">—</div>
-      </div>
-
-      <button id="baseSwapButton" class="btn btn-primary">Swap via V3 Router</button>
-    </section>
-
-    <section class="card">
-      <h2>Logs</h2>
-      <pre id="logArea" class="logArea"></pre>
-    </section>
-
-    <footer>
-      <span>Top: Uniswap V2 (ETH mainnet) • Bottom: Uniswap V3 on Base (exactInputSingle)</span>
-    </footer>
-  </div>
-
-  <script src="./script.js"></script>
-</body>
-</html>
+          <input id="tokenIn" plac
