@@ -1,4 +1,5 @@
 // PadThai Swap • Base (Router direct) — vanilla JS + Web3Modal v1 + ethers v5
+// FIX: use callStatic for QuoterV2 to avoid "requires a signer" on quote
 
 const $ = (id)=>document.getElementById(id);
 const log = (m)=>{ const a=$("logs"); a.textContent+=`${new Date().toLocaleTimeString()}  ${m}\n`; a.scrollTop=a.scrollHeight; };
@@ -55,14 +56,15 @@ const ERC20_ABI = [
   "function approve(address spender,uint256 value) returns (bool)"
 ];
 
-// Try both common router entrypoints
+// Router entrypoints we’ll try
 const SWAP_ABI = [
   // v3-style
   "function exactInputSingle((address tokenIn,address tokenOut,uint24 fee,address recipient,uint256 deadline,uint256 amountIn,uint256 amountOutMinimum,uint160 sqrtPriceLimitX96)) payable returns (uint256)",
+  // fallback (path-encoded)
   "function exactInput(bytes path,address recipient,uint256 deadline,uint256 amountIn,uint256 amountOutMinimum) payable returns (uint256)"
 ];
 
-// Quoter V2 (optional, for display)
+// Quoter V2 (NOT view → must use callStatic)
 const QUOTER_V2_ABI = [
   "function quoteExactInputSingle(address,address,uint256,uint24,uint160) external returns (uint256)"
 ];
@@ -78,7 +80,7 @@ async function requireBase(){
   if(Number(net.chainId)!==8453) throw new Error("Please switch network to Base (8453)");
 }
 
-// ----- Quote (using QuoterV2 if available) -----
+// ----- Quote (use callStatic) -----
 async function doQuote(){
   try{
     await requireBase();
@@ -98,13 +100,11 @@ async function doQuote(){
 
     const amountIn = toUnits(amount, decIn);
 
-    let out;
-    if(quoter){
-      const quoterC = new ethers.Contract(quoter, QUOTER_V2_ABI, provider);
-      out = await quoterC.quoteExactInputSingle(tokenIn, tokenOut, amountIn, fee, 0);
-    } else {
-      throw new Error("No Quoter set — quote unavailable (still can Swap).");
-    }
+    if(!quoter) throw new Error("No Quoter set — quote unavailable (still can Swap)");
+
+    const quoterC = new ethers.Contract(quoter, QUOTER_V2_ABI, provider);
+    // ✅ simulate instead of sending a tx
+    const out = await quoterC.callStatic.quoteExactInputSingle(tokenIn, tokenOut, amountIn, fee, 0);
 
     const slip = Number($("slippage").value||"0.5");
     const outMin = out.mul(10000 - Math.round(slip*100)).div(10000);
@@ -140,19 +140,16 @@ async function doApprove(){
   }catch(e){ log(`Approve error: ${e.message||e}`); }
 }
 
-// ----- Swap (try exactInputSingle -> fallback exactInput) -----
+// ----- Swap (try exactInputSingle → fallback exactInput) -----
 function buildPath(tokenIn, fee, tokenOut){
-  // bytes: address (20) + uint24 (3) + address (20)
-  return ethers.utils.solidityPack(
-    ["address","uint24","address"], [tokenIn, fee, tokenOut]
-  );
+  return ethers.utils.solidityPack(["address","uint24","address"], [tokenIn, fee, tokenOut]);
 }
 
 async function doSwap(){
   try{
     await requireBase();
 
-    const router   = $("router").value.trim();
+    const router   = $("router").value.trim();   // default: 0x6fF5693b99212Da76ad316178A184AB56D299b43
     const tokenIn  = $("tokenIn").value.trim();
     const tokenOut = $("tokenOut").value.trim();
     const fee      = Number($("fee").value||3000);
@@ -165,24 +162,23 @@ async function doSwap(){
     const [decIn, decOut] = await Promise.all([tIn.decimals(), tOut.decimals()]);
     const amountIn = toUnits(amount, decIn);
 
-    // (optional) re-quote to set minOut; ถ้าไม่มี quoter ให้ตั้ง minOut=0 (เสี่ยง slippage)
+    // (optional) re-quote → minOut (callStatic)
     let minOut = ethers.constants.Zero;
     try{
       const quoter = $("quoter").value.trim();
       if(quoter){
-        const quoted = await new ethers.Contract(quoter, QUOTER_V2_ABI, provider)
-          .quoteExactInputSingle(tokenIn, tokenOut, amountIn, fee, 0);
+        const q = new ethers.Contract(quoter, QUOTER_V2_ABI, provider);
+        const quoted = await q.callStatic.quoteExactInputSingle(tokenIn, tokenOut, amountIn, fee, 0); // ✅
         minOut = quoted.mul(10000 - Math.round(slip*100)).div(10000);
       } else {
         log("⚠️ No Quoter set — using minOut=0");
       }
     }catch(qe){ log(`Quoter failed (${qe.message||qe}) — using minOut=0`); }
 
-    const owner = await signer.getAddress();
+    const owner   = await signer.getAddress();
     const routerC = new ethers.Contract(router, SWAP_ABI, signer);
     const deadline = Math.floor(Date.now()/1000) + ddlMin*60;
 
-    // Try exactInputSingle
     const params = {
       tokenIn, tokenOut,
       fee,
