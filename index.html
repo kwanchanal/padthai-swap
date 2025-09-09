@@ -5,13 +5,14 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Baht Swap – v4 (Base)</title>
   <link rel="stylesheet" href="style.css" />
-  <!-- viem -->
-  <script defer src="https://unpkg.com/viem@2.21.5/dist/viem.umd.min.js"></script>
 </head>
 <body>
   <div class="app">
     <header class="topbar">
-      <div class="brand"><span class="logo">฿</span><span class="title">Baht Swap • v4</span></div>
+      <div class="brand">
+        <span class="logo">฿</span>
+        <span class="title">Baht Swap • v4</span>
+      </div>
       <button id="connectBtn" class="btn primary">Connect Wallet</button>
     </header>
 
@@ -52,18 +53,18 @@
       </div>
 
       <div class="actions">
-        <button id="permit2Btn" class="btn">Approve (Permit2)</button>
-        <button id="swapBtn" class="btn primary">Swap</button>
+        <button id="permit2Btn" class="btn" disabled>Approve (Permit2)</button>
+        <button id="swapBtn" class="btn primary" disabled>Swap</button>
       </div>
 
       <div class="help">
         <details>
           <summary>Advanced</summary>
           <div class="adv">
-            <p><b>Router (v4 Universal Router):</b> <code id="routerAddr">0x6fF5693b99212Da76ad316178A184AB56D299b43</code></p>
+            <p><b>Universal Router (v4):</b> <code id="routerAddr">0x6fF5693b99212Da76ad316178A184AB56D299b43</code></p>
             <p><b>PoolManager (Base):</b> <code>0x498581ff718922c3f8e6a244956af099b2652b2b</code></p>
             <p><b>Permit2:</b> <code>0x000000000022D473030F116dDEE9F6B43aC78BA3</code></p>
-            <p class="note">คำสั่งเป็น <code>V4_SWAP</code> + actions <code>[SWAP_EXACT_IN_SINGLE, SETTLE_ALL, TAKE_ALL]</code> ตาม docs</p>
+            <p class="note">คำสั่งใช้ <code>V4_SWAP</code> + actions <code>[SWAP_EXACT_IN_SINGLE, SETTLE_ALL, TAKE_ALL]</code></p>
           </div>
         </details>
       </div>
@@ -80,9 +81,11 @@
     <footer class="foot">
       <span>Base Mainnet • USDT (6) ⇄ THBT (18)</span>
       <a href="https://basescan.org/tx/0xd45fe0db1378e3abc5e34d6c9d68a4411ab9e94d5319309a5004c9db9c4c0004" target="_blank">Reference tx</a>
+      <a href="https://basescan.org/token/0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2?a=0x498581ff718922c3f8e6a244956af099b2652b2b" target="_blank">Pool Manager view</a>
     </footer>
   </div>
 
-  <script src="app.js" defer></script>
+  <!-- โหลดแอปเป็น ES Module (ภายในจะ import viem เอง) -->
+  <script type="module" src="app.js"></script>
 </body>
 </html>
