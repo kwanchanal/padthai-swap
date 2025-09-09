@@ -1,124 +1,88 @@
 <!doctype html>
 <html lang="th">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Padthai Swap • Base v4 (USDT → THBT)</title>
-
-  <!-- สไตล์ -->
-  <link rel="stylesheet" href="./style.css"/>
-
-  <!-- ไลบรารี (UMD) สำหรับ injected-only -->
-  <script src="https://unpkg.com/web3modal@1.9.12/dist/index.js"></script>
-  <script src="https://unpkg.com/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Baht Swap – v4 (Base)</title>
+  <link rel="stylesheet" href="style.css" />
+  <!-- viem -->
+  <script defer src="https://unpkg.com/viem@2.21.5/dist/viem.umd.min.js"></script>
 </head>
 <body>
-  <div class="wrap">
-    <header>
-      <div>
-        <h1>Padthai Swap <span class="tiny">• Base • Uniswap v4</span></h1>
-        <div class="tiny">USDT → THBT ผ่าน Universal Router</div>
-      </div>
-      <div class="row" style="gap:8px">
-        <button id="btn-connect" class="btn primary">Connect Wallet</button>
-        <span id="acctTag" class="pill mono">Not connected</span>
-      </div>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand"><span class="logo">฿</span><span class="title">Baht Swap • v4</span></div>
+      <button id="connectBtn" class="btn primary">Connect Wallet</button>
     </header>
 
-    <!-- Box A -->
-    <section class="card" id="boxA">
-      <div class="row" style="justify-content:space-between">
-        <div style="font-weight:700">Swap • Box A</div>
-        <div class="pill mono" id="netA">—</div>
-      </div>
-      <div class="hr"></div>
+    <main class="card swap-card">
+      <div class="pair-row">
+        <div class="token-box">
+          <label>From</label>
+          <div class="amount-line">
+            <input id="amountIn" placeholder="0.00" inputmode="decimal" />
+            <button id="fromTokenBtn" class="token-pill">USDT</button>
+          </div>
+          <div class="sub">Balance: <span id="fromBalance">-</span></div>
+        </div>
 
-      <div class="grid2">
-        <div>
-          <label>Token In</label>
-          <select id="tokenInA"></select>
-        </div>
-        <div>
-          <label>Token Out</label>
-          <select id="tokenOutA"></select>
-        </div>
-      </div>
+        <button id="flipBtn" class="icon-btn" title="Flip">⇅</button>
 
-      <div class="grid3">
-        <div>
-          <label>Amount In</label>
-          <input id="amountInA" placeholder="100"/>
-        </div>
-        <div>
-          <label>Slippage (%)</label>
-          <input id="slippageA" value="0.5"/>
-        </div>
-        <div>
-          <label>Router (Universal)</label>
-          <input id="routerA" value="0x6fF5693b99212Da76ad316178A184AB56D299b43"/>
+        <div class="token-box">
+          <label>To (est.)</label>
+          <div class="amount-line">
+            <input id="amountOut" placeholder="0.00" readonly />
+            <button id="toTokenBtn" class="token-pill">THBT</button>
+          </div>
+          <div class="sub">Balance: <span id="toBalance">-</span></div>
         </div>
       </div>
 
-      <div class="row" style="margin-top:8px">
-        <button id="quoteA" class="btn">Get Quote</button>
-        <button id="approveA" class="btn ok">Setup Approvals</button>
-        <button id="swapA" class="btn primary">Swap</button>
+      <div class="row">
+        <div class="slippage">
+          <span>Slippage</span>
+          <div class="slip-group">
+            <button data-slip="0.1" class="slip-btn">0.1%</button>
+            <button data-slip="0.5" class="slip-btn active">0.5%</button>
+            <button data-slip="1" class="slip-btn">1%</button>
+            <input id="slippageCustom" placeholder="custom %" />
+          </div>
+        </div>
+        <div class="rate"><span id="rateText">–</span></div>
       </div>
 
-      <div class="hr"></div>
-      <div class="tiny"><b>Quote:</b> <span id="qA" class="quote">—</span></div>
-      <div class="tiny"><b>PoolKey:</b> <span id="pkA" class="mono">—</span></div>
-      <div class="tiny"><b>Debug:</b> <span id="dbgA" class="mono">—</span></div>
+      <div class="actions">
+        <button id="permit2Btn" class="btn">Approve (Permit2)</button>
+        <button id="swapBtn" class="btn primary">Swap</button>
+      </div>
+
+      <div class="help">
+        <details>
+          <summary>Advanced</summary>
+          <div class="adv">
+            <p><b>Router (v4 Universal Router):</b> <code id="routerAddr">0x6fF5693b99212Da76ad316178A184AB56D299b43</code></p>
+            <p><b>PoolManager (Base):</b> <code>0x498581ff718922c3f8e6a244956af099b2652b2b</code></p>
+            <p><b>Permit2:</b> <code>0x000000000022D473030F116dDEE9F6B43aC78BA3</code></p>
+            <p class="note">คำสั่งเป็น <code>V4_SWAP</code> + actions <code>[SWAP_EXACT_IN_SINGLE, SETTLE_ALL, TAKE_ALL]</code> ตาม docs</p>
+          </div>
+        </details>
+      </div>
+    </main>
+
+    <section class="card logs">
+      <div class="logs-head">
+        <h3>Logs / Investigate</h3>
+        <button id="clearLog" class="icon-btn" title="Clear">✕</button>
+      </div>
+      <pre id="logBox"></pre>
     </section>
 
-    <!-- Box B (duplicate) -->
-    <section class="card" id="boxB">
-      <div class="row" style="justify-content:space-between">
-        <div style="font-weight:700">Swap • Box B</div>
-        <div class="pill mono" id="netB">—</div>
-      </div>
-      <div class="hr"></div>
-
-      <div class="grid2">
-        <div>
-          <label>Token In</label>
-          <select id="tokenInB"></select>
-        </div>
-        <div>
-          <label>Token Out</label>
-          <select id="tokenOutB"></select>
-        </div>
-      </div>
-
-      <div class="grid3">
-        <div>
-          <label>Amount In</label>
-          <input id="amountInB" placeholder="100"/>
-        </div>
-        <div>
-          <label>Slippage (%)</label>
-          <input id="slippageB" value="0.5"/>
-        </div>
-        <div>
-          <label>Router (Universal)</label>
-          <input id="routerB" value="0x6fF5693b99212Da76ad316178A184AB56D299b43"/>
-        </div>
-      </div>
-
-      <div class="row" style="margin-top:8px">
-        <button id="quoteB" class="btn">Get Quote</button>
-        <button id="approveB" class="btn ok">Setup Approvals</button>
-        <button id="swapB" class="btn primary">Swap</button>
-      </div>
-
-      <div class="hr"></div>
-      <div class="tiny"><b>Quote:</b> <span id="qB" class="quote">—</span></div>
-      <div class="tiny"><b>PoolKey:</b> <span id="pkB" class="mono">—</span></div>
-      <div class="tiny"><b>Debug:</b> <span id="dbgB" class="mono">—</span></div>
-    </section>
+    <footer class="foot">
+      <span>Base Mainnet • USDT (6) ⇄ THBT (18)</span>
+      <a href="https://basescan.org/tx/0xd45fe0db1378e3abc5e34d6c9d68a4411ab9e94d5319309a5004c9db9c4c0004" target="_blank">Reference tx</a>
+    </footer>
   </div>
 
-  <!-- สคริปต์ลอจิก (ต้อง type="module" เพราะ import SDK) -->
-  <script type="module" src="./script.js"></script>
+  <script src="app.js" defer></script>
 </body>
 </html>
