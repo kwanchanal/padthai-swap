@@ -20,5 +20,5 @@ input::placeholder{color:#94a3b8}
 .btn.blue{background:#dbeafe;border-color:#bfdbfe} .btn.green{background:#dcfce7;border-color:#bbf7d0}
 .btn.ghost{background:var(--ghost)}
 .quote{flex:1;border:1px dashed var(--line);border-radius:12px;padding:10px;color:var(--muted);background:#fafafa}
-.logs{min-height:180px;background:#0f172a;color:white;border-radius:12px;padding:12px;white-space:pre-wrap;overflow:auto}
+.logs{min-height:200px;background:#0f172a;color:white;border-radius:12px;padding:12px;white-space:pre-wrap;overflow:auto}
 @media(max-width:760px){.grid2,.grid3{grid-template-columns:1fr}}
