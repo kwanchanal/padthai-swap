@@ -1,4 +1,4 @@
-// PadThai Swap (Base • Uniswap v3) — vanilla JS + Web3Modal v1 + ethers v5
+// PadThai Swap • Base (Router direct) — vanilla JS + Web3Modal v1 + ethers v5
 
 const $ = (id)=>document.getElementById(id);
 const log = (m)=>{ const a=$("logs"); a.textContent+=`${new Date().toLocaleTimeString()}  ${m}\n`; a.scrollTop=a.scrollHeight; };
@@ -48,19 +48,23 @@ async function disconnect(){
   }
 }
 
-// ----- Uniswap v3 contracts (Base) -----
+// ----- ABIs -----
 const ERC20_ABI = [
   "function decimals() view returns (uint8)",
   "function allowance(address owner,address spender) view returns (uint256)",
   "function approve(address spender,uint256 value) returns (bool)"
 ];
 
-const QUOTER_V2_ABI = [
-  "function quoteExactInputSingle(address,address,uint256,uint24,uint160) external returns (uint256)"
+// Try both common router entrypoints
+const SWAP_ABI = [
+  // v3-style
+  "function exactInputSingle((address tokenIn,address tokenOut,uint24 fee,address recipient,uint256 deadline,uint256 amountIn,uint256 amountOutMinimum,uint160 sqrtPriceLimitX96)) payable returns (uint256)",
+  "function exactInput(bytes path,address recipient,uint256 deadline,uint256 amountIn,uint256 amountOutMinimum) payable returns (uint256)"
 ];
 
-const SWAPROUTER02_ABI = [
-  "function exactInputSingle((address tokenIn,address tokenOut,uint24 fee,address recipient,uint256 deadline,uint256 amountIn,uint256 amountOutMinimum,uint160 sqrtPriceLimitX96)) payable returns (uint256)"
+// Quoter V2 (optional, for display)
+const QUOTER_V2_ABI = [
+  "function quoteExactInputSingle(address,address,uint256,uint24,uint160) external returns (uint256)"
 ];
 
 // helpers
@@ -74,11 +78,10 @@ async function requireBase(){
   if(Number(net.chainId)!==8453) throw new Error("Please switch network to Base (8453)");
 }
 
-// ----- Quote -----
+// ----- Quote (using QuoterV2 if available) -----
 async function doQuote(){
   try{
     await requireBase();
-
     const tokenIn  = $("tokenIn").value.trim();
     const tokenOut = $("tokenOut").value.trim();
     const fee      = Number($("fee").value||3000);
@@ -94,30 +97,34 @@ async function doQuote(){
     ]);
 
     const amountIn = toUnits(amount, decIn);
-    const quoterC = new ethers.Contract(quoter, QUOTER_V2_ABI, provider);
 
-    const out = await quoterC.quoteExactInputSingle(tokenIn, tokenOut, amountIn, fee, 0);
-    const outFmt = fmt(out, decOut);
+    let out;
+    if(quoter){
+      const quoterC = new ethers.Contract(quoter, QUOTER_V2_ABI, provider);
+      out = await quoterC.quoteExactInputSingle(tokenIn, tokenOut, amountIn, fee, 0);
+    } else {
+      throw new Error("No Quoter set — quote unavailable (still can Swap).");
+    }
 
     const slip = Number($("slippage").value||"0.5");
     const outMin = out.mul(10000 - Math.round(slip*100)).div(10000);
-    const outMinFmt = fmt(outMin, decOut);
 
-    $("quoteBox").textContent = `≈ ${outFmt} (min ~${outMinFmt} @ ${slip}%)`;
-    log(`Quote: ${amount} in -> ${outFmt} out (fee ${fee})`);
+    $("quoteBox").textContent = `≈ ${fmt(out,decOut)} (min ~${fmt(outMin,decOut)} @ ${slip}%)`;
+    log(`Quote: ${amount} in -> ${fmt(out,decOut)} out (fee ${fee})`);
   }catch(e){
     $("quoteBox").textContent = "—";
     log(`Quote error: ${e.message||e}`);
   }
 }
 
-// ----- Approve & Swap -----
+// ----- Approve -----
 async function doApprove(){
   try{
     await requireBase();
     const router = $("router").value.trim();
     const tokenIn = $("tokenIn").value.trim();
     const amount  = $("amountIn").value.trim();
+    if(!tokenIn || !router) throw new Error("Missing token/router");
 
     const decIn = await new ethers.Contract(tokenIn, ERC20_ABI, provider).decimals();
     const amountIn = toUnits(amount, decIn);
@@ -129,10 +136,16 @@ async function doApprove(){
 
     log(`Approving ${amount} to router...`);
     const tx = await erc.approve(router, amountIn);
-    log(`Approve tx: ${tx.hash}`);
-    await tx.wait();
-    log("✅ Approve confirmed");
+    log(`Approve tx: ${tx.hash}`); await tx.wait(); log("✅ Approve confirmed");
   }catch(e){ log(`Approve error: ${e.message||e}`); }
+}
+
+// ----- Swap (try exactInputSingle -> fallback exactInput) -----
+function buildPath(tokenIn, fee, tokenOut){
+  // bytes: address (20) + uint24 (3) + address (20)
+  return ethers.utils.solidityPack(
+    ["address","uint24","address"], [tokenIn, fee, tokenOut]
+  );
 }
 
 async function doSwap(){
@@ -145,35 +158,58 @@ async function doSwap(){
     const fee      = Number($("fee").value||3000);
     const amount   = $("amountIn").value.trim();
     const slip     = Number($("slippage").value||"0.5");
-    const deadlineMin = Number($("deadline").value||"10");
+    const ddlMin   = Number($("deadline").value||"10");
 
     const tIn  = new ethers.Contract(tokenIn,  ERC20_ABI, provider);
     const tOut = new ethers.Contract(tokenOut, ERC20_ABI, provider);
     const [decIn, decOut] = await Promise.all([tIn.decimals(), tOut.decimals()]);
     const amountIn = toUnits(amount, decIn);
 
-    // fresh quote -> outMin
-    const quoterC = new ethers.Contract($("quoter").value.trim(), QUOTER_V2_ABI, provider);
-    const quoted = await quoterC.quoteExactInputSingle(tokenIn, tokenOut, amountIn, fee, 0);
-    const outMin = quoted.mul(10000 - Math.round(slip*100)).div(10000);
+    // (optional) re-quote to set minOut; ถ้าไม่มี quoter ให้ตั้ง minOut=0 (เสี่ยง slippage)
+    let minOut = ethers.constants.Zero;
+    try{
+      const quoter = $("quoter").value.trim();
+      if(quoter){
+        const quoted = await new ethers.Contract(quoter, QUOTER_V2_ABI, provider)
+          .quoteExactInputSingle(tokenIn, tokenOut, amountIn, fee, 0);
+        minOut = quoted.mul(10000 - Math.round(slip*100)).div(10000);
+      } else {
+        log("⚠️ No Quoter set — using minOut=0");
+      }
+    }catch(qe){ log(`Quoter failed (${qe.message||qe}) — using minOut=0`); }
 
-    const routerC = new ethers.Contract(router, SWAPROUTER02_ABI, signer);
-    const owner   = await signer.getAddress();
+    const owner = await signer.getAddress();
+    const routerC = new ethers.Contract(router, SWAP_ABI, signer);
+    const deadline = Math.floor(Date.now()/1000) + ddlMin*60;
+
+    // Try exactInputSingle
     const params = {
       tokenIn, tokenOut,
       fee,
       recipient: owner,
-      deadline: Math.floor(Date.now()/1000) + deadlineMin*60,
+      deadline,
       amountIn,
-      amountOutMinimum: outMin,
+      amountOutMinimum: minOut,
       sqrtPriceLimitX96: 0
     };
 
-    log(`Swapping ${amount} in (minOut ${fmt(outMin,decOut)})…`);
-    const tx = await routerC.exactInputSingle(params, { value: 0 });
-    log(`Swap tx: ${tx.hash}`);
-    const rc = await tx.wait();
-    log(`✅ Swap confirmed in block ${rc.blockNumber}`);
+    log(`Trying exactInputSingle(...) on router ${router}`);
+    try{
+      const tx = await routerC.exactInputSingle(params, { value: 0 });
+      log(`Swap tx: ${tx.hash}`);
+      const rc = await tx.wait();
+      log(`✅ Swap confirmed in block ${rc.blockNumber}`);
+      return;
+    }catch(e1){
+      log(`exactInputSingle failed: ${e1.reason||e1.message||e1}`);
+      // Fallback: exactInput(path,...)
+      const path = buildPath(tokenIn, fee, tokenOut);
+      log(`Trying exactInput(path, ...) fallback`);
+      const tx2 = await routerC.exactInput(path, owner, deadline, amountIn, minOut, { value: 0 });
+      log(`Swap tx: ${tx2.hash}`);
+      const rc2 = await tx2.wait();
+      log(`✅ Swap (fallback) confirmed in block ${rc2.blockNumber}`);
+    }
   }catch(e){ log(`Swap error: ${e.reason||e.message||e}`); }
 }
 
@@ -186,4 +222,3 @@ window.addEventListener("DOMContentLoaded", ()=>{
   $("approveBtn").onclick = doApprove;
   $("swapBtn").onclick = doSwap;
 });
-
