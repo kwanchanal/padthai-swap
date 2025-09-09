@@ -7,12 +7,9 @@
   <link rel="stylesheet" href="./style.css"/>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;700&display=swap" rel="stylesheet">
 
-  <!-- ===== Dependencies (CDN) ===== -->
-  <!-- Web3Modal v1 (vanilla JS) -->
+  <!-- Web3Modal v1 + WalletConnect + ethers v5 -->
   <script src="https://unpkg.com/web3modal@1.9.12/dist/index.js"></script>
-  <!-- WalletConnect provider (v1) -->
   <script src="https://unpkg.com/@walletconnect/web3-provider@1.8.0/dist/umd/index.min.js"></script>
-  <!-- Ethers v5 (ใช้คู่กับ Web3Modal v1 ได้ง่ายสุด) -->
   <script src="https://unpkg.com/ethers@5.7.2/dist/ethers.umd.min.js"></script>
 </head>
 <body>
@@ -25,6 +22,7 @@
       </div>
     </header>
 
+    <!-- ===== Card #1: Ethereum + Uniswap V2 (คงของเดิม) ===== -->
     <section class="card">
       <div class="row">
         <label>Network</label>
@@ -75,13 +73,75 @@
       <button id="swapButton" class="btn btn-primary">Swap</button>
     </section>
 
+    <!-- ===== Card #2: Base + Uniswap V3 (exactInputSingle) USDT -> THBT ===== -->
+    <section class="card">
+      <h2 style="margin:0 0 8px">PadThai Swap • Base • Uniswap V3 (USDT → THBT)</h2>
+
+      <div class="row">
+        <label>Network</label>
+        <div id="baseNetworkLabel" class="pill">Not connected</div>
+      </div>
+
+      <div class="row">
+        <label>SwapRouter02 (Uniswap V3)</label>
+        <input id="baseRouter" type="text"
+               value="0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45"
+               spellcheck="false"/>
+      </div>
+
+      <div class="grid">
+        <div>
+          <label>Token In (USDT on Base)</label>
+          <input id="baseTokenIn" type="text"
+                 placeholder="USDT address on Base"
+                 spellcheck="false"/>
+        </div>
+        <div>
+          <label>Token Out (THBT on Base)</label>
+          <input id="baseTokenOut" type="text"
+                 value="0xdC200537D99d8b4f0C89D59A68e29b67057d2c5F"
+                 spellcheck="false"/>
+          <small class="muted">THBT</small>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div>
+          <label>Pool Fee (v3) — e.g. 3000 = 0.3%</label>
+          <input id="baseFee" type="number" min="100" step="100" value="3000"/>
+        </div>
+        <div>
+          <label>Amount In (USDT)</label>
+          <input id="baseAmountIn" type="number" min="0" step="0.000001" placeholder="100"/>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div>
+          <label>Slippage (%)</label>
+          <input id="baseSlippage" type="number" min="0" step="0.1" value="0.5"/>
+        </div>
+        <div>
+          <label>Deadline (minutes)</label>
+          <input id="baseDeadlineMins" type="number" min="1" step="1" value="10"/>
+        </div>
+      </div>
+
+      <div class="quoteBox">
+        <button id="baseQuoteButton" class="btn btn-secondary">Get Quote</button>
+        <div id="baseQuoteText" class="quoteText">—</div>
+      </div>
+
+      <button id="baseSwapButton" class="btn btn-primary">Swap via V3 Router</button>
+    </section>
+
     <section class="card">
       <h2>Logs</h2>
       <pre id="logArea" class="logArea"></pre>
     </section>
 
     <footer>
-      <span>Wallets: Injected (MetaMask) & WalletConnect • Uniswap V2 Router • ethers v5</span>
+      <span>Top: Uniswap V2 (ETH mainnet) • Bottom: Uniswap V3 on Base (exactInputSingle)</span>
     </footer>
   </div>
 
