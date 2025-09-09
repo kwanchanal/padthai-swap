@@ -102,26 +102,37 @@ import * as viemLib from "https://esm.sh/viem@2.21.5";
 
   // ---------- Permit2 approvals ----------
   async function approvePermit2() {
-    if (!account) await connect();
-    // 1) USDT.approve(PERMIT2, Max)
-    const tx1 = await walletClient.writeContract({
-      address: viemLib.getAddress(ADDR.USDT),
-      abi: ABI.erc20, functionName: 'approve',
-      args: [viemLib.getAddress(ADDR.PERMIT2), viemLib.MaxUint256]
-    });
-    log('approve(USDT -> Permit2) tx:', tx1);
-    await publicClient.waitForTransactionReceipt({ hash: tx1 }); log('approve #1 confirmed');
+    try {
+      if (!account) await connect();
 
-    // 2) Permit2.approve(token, spender=UniversalRouter, amount(uint160), expiration(uint48))
-    const amount160 = BigInt('0xffffffffffffffffffffffffffffffff'); // ~max uint160
-    const exp48 = BigInt(60*60*24*365*5); // ~5 years
-    const tx2 = await walletClient.writeContract({
-      address: viemLib.getAddress(ADDR.PERMIT2),
-      abi: ABI.permit2, functionName: 'approve',
-      args: [viemLib.getAddress(ADDR.USDT), viemLib.getAddress(ADDR.UNIVERSAL_ROUTER), amount160, exp48]
-    });
-    log('Permit2.approve → Router tx:', tx2);
-    await publicClient.waitForTransactionReceipt({ hash: tx2 }); log('approve #2 confirmed');
+      // 1) USDT.approve(PERMIT2, Max)  ← ใช้ viemLib.maxUint256 (ตัว m เล็ก)
+      const tx1 = await walletClient.writeContract({
+        account,
+        address: viemLib.getAddress(ADDR.USDT),
+        abi: ABI.erc20, functionName: 'approve',
+        args: [viemLib.getAddress(ADDR.PERMIT2), viemLib.maxUint256]
+      });
+      log('approve(USDT -> Permit2) tx:', tx1);
+      await publicClient.waitForTransactionReceipt({ hash: tx1 }); log('approve #1 confirmed');
+
+      // 2) Permit2.approve(token, spender=UniversalRouter, amount(uint160), expiration(uint48))
+      //    expiration ใช้ now + 5 ปี (วินาที)
+      const nowSec = BigInt(Math.floor(Date.now()/1000));
+      const exp48  = nowSec + BigInt(60*60*24*365*5);
+      const max160 = BigInt("0xffffffffffffffffffffffffffffffff"); // max uint160
+
+      const tx2 = await walletClient.writeContract({
+        account,
+        address: viemLib.getAddress(ADDR.PERMIT2),
+        abi: ABI.permit2, functionName: 'approve',
+        args: [viemLib.getAddress(ADDR.USDT), viemLib.getAddress(ADDR.UNIVERSAL_ROUTER), max160, exp48]
+      });
+      log('Permit2.approve → Router tx:', tx2);
+      await publicClient.waitForTransactionReceipt({ hash: tx2 }); log('approve #2 confirmed');
+    } catch (e) {
+      log('Permit2 error', { message: e?.message, shortMessage: e?.shortMessage, cause: e?.cause });
+      alert(e?.shortMessage || e?.message || String(e));
+    }
   }
 
   // ---------- encode params (UR v4) ----------
@@ -176,57 +187,57 @@ import * as viemLib from "https://esm.sh/viem@2.21.5";
     return viemLib.parseUnits(min.toString(), state.to.decimals);
   }
   async function swapV4() {
-    if (!account) await connect();
+    try {
+      if (!account) await connect();
 
-    const amountIn = parseUserAmountIn();
-    const estOutHuman = $('amountOut').value || '0';
-    const minOut = minOutFromEst(estOutHuman);
+      const amountIn = parseUserAmountIn();
+      const estOutHuman = $('amountOut').value || '0';
+      const minOut = minOutFromEst(estOutHuman);
 
-    // poolKey: currency0=THBT, currency1=USDT → ถ้า from == currency0 → zeroForOne=true
-    const zeroForOne = viemLib.isAddressEqual(state.from.addr, V4.poolKey.currency0);
+      // poolKey: currency0=THBT, currency1=USDT → ถ้า from == currency0 → zeroForOne=true
+      const zeroForOne = viemLib.isAddressEqual(state.from.addr, V4.poolKey.currency0);
 
-    // actions & params
-    const actionsBytes = Uint8Array.from([V4.ACTION_SWAP_EXACT_IN_SINGLE, V4.ACTION_SETTLE_ALL, V4.ACTION_TAKE_ALL]);
-    const actionsEncoded = '0x' + Array.from(actionsBytes).map(b => b.toString(16).padStart(2,'0')).join('');
+      // actions & params
+      const actionsBytes = Uint8Array.from([V4.ACTION_SWAP_EXACT_IN_SINGLE, V4.ACTION_SETTLE_ALL, V4.ACTION_TAKE_ALL]);
+      const actionsEncoded = '0x' + Array.from(actionsBytes).map(b => b.toString(16).padStart(2,'0')).join('');
 
-    const swapParams = encodeExactInSingleParams({
-      poolKey: V4.poolKey,
-      zeroForOne,
-      amountIn: viemLib.toHex(amountIn, { size: 16 }),           // uint128
-      amountOutMinimum: viemLib.toHex(minOut, { size: 16 }),     // uint128
-      hookData: '0x'
-    });
+      const swapParams = encodeExactInSingleParams({
+        poolKey: V4.poolKey,
+        zeroForOne,
+        amountIn: viemLib.toHex(amountIn, { size: 16 }),           // uint128
+        amountOutMinimum: viemLib.toHex(minOut, { size: 16 }),     // uint128
+        hookData: '0x'
+      });
 
-    const currencyIn  = zeroForOne ? V4.poolKey.currency0 : V4.poolKey.currency1;
-    toCurrencyCheck();
+      const currencyIn  = zeroForOne ? V4.poolKey.currency0 : V4.poolKey.currency1;
+      const currencyOut = zeroForOne ? V4.poolKey.currency1 : V4.poolKey.currency0;
 
-    const settleParams = encodeSettleAllParams(currencyIn, amountIn);
-    const currencyOut = zeroForOne ? V4.poolKey.currency1 : V4.poolKey.currency0;
-    const takeParams   = encodeTakeAllParams(currencyOut, minOut);
+      const settleParams = encodeSettleAllParams(currencyIn, amountIn);
+      const takeParams   = encodeTakeAllParams(currencyOut, minOut);
 
-    // inputs payload (ตาม Universal Router)
-    const paramsArrayEncoded = viemLib.encodeAbiParameters(
-      [{ type: 'bytes' }, { type: 'bytes[]' }],
-      [actionsEncoded, [swapParams, settleParams, takeParams]]
-    );
-    const commandsHex = '0x10'; // COMMAND_V4_SWAP
+      // inputs payload (ตาม Universal Router)
+      const paramsArrayEncoded = viemLib.encodeAbiParameters(
+        [{ type: 'bytes' }, { type: 'bytes[]' }],
+        [actionsEncoded, [swapParams, settleParams, takeParams]]
+      );
+      const commandsHex = '0x10'; // COMMAND_V4_SWAP
 
-    const tx = await walletClient.writeContract({
-      address: viemLib.getAddress(ADDR.UNIVERSAL_ROUTER),
-      abi: ABI.universalRouter,
-      functionName: 'execute',
-      args: [commandsHex, [paramsArrayEncoded], Math.floor(Date.now()/1000) + 60*10],
-      value: 0n
-    });
-    log('UniversalRouter.execute sent:', tx);
-    const rc = await publicClient.waitForTransactionReceipt({ hash: tx });
-    log('Swap receipt:', rc);
-    refreshBalances();
-  }
-
-  function toCurrencyCheck(){
-    // placeholder hook to keep linter happy; useful for future validations
-    return true;
+      const tx = await walletClient.writeContract({
+        account,
+        address: viemLib.getAddress(ADDR.UNIVERSAL_ROUTER),
+        abi: ABI.universalRouter,
+        functionName: 'execute',
+        args: [commandsHex, [paramsArrayEncoded], Math.floor(Date.now()/1000) + 60*10],
+        value: 0n
+      });
+      log('UniversalRouter.execute sent:', tx);
+      const rc = await publicClient.waitForTransactionReceipt({ hash: tx });
+      log('Swap receipt:', rc);
+      refreshBalances();
+    } catch (e) {
+      log('Swap error', { message: e?.message, shortMessage: e?.shortMessage, cause: e?.cause, meta: e?.metaMessages });
+      alert(e?.shortMessage || e?.message || String(e));
+    }
   }
 
   // ---------- connect (MetaMask only) ----------
@@ -237,7 +248,7 @@ import * as viemLib from "https://esm.sh/viem@2.21.5";
       // 1) ขอสิทธิ์บัญชี
       const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
       if (!accounts || !accounts.length) throw new Error('No account granted');
-      const selected = accounts[0];
+      account = viemLib.getAddress(accounts[0]);
 
       // 2) ตรวจ/สลับเชนเป็น Base
       const baseHex = '0x2105'; // 8453
@@ -261,9 +272,12 @@ import * as viemLib from "https://esm.sh/viem@2.21.5";
         }
       }
 
-      // 3) สร้าง walletClient
-      walletClient = viemLib.createWalletClient({ chain: CHAIN, transport: viemLib.custom(window.ethereum) });
-      account = viemLib.getAddress(selected);
+      // 3) สร้าง walletClient พร้อม account (สำคัญ!)
+      walletClient = viemLib.createWalletClient({
+        chain: CHAIN,
+        transport: viemLib.custom(window.ethereum),
+        account
+      });
 
       // UI
       $('connectBtn').textContent = account.slice(0,6) + '...' + account.slice(-4);
@@ -278,7 +292,7 @@ import * as viemLib from "https://esm.sh/viem@2.21.5";
 
       log('✅ Connected', account);
     } catch (err) {
-      log('❌ Connect error:', err);
+      log('❌ Connect error:', { message: err?.message, shortMessage: err?.shortMessage, cause: err?.cause });
       alert(err?.message || String(err));
     }
   }
@@ -286,8 +300,8 @@ import * as viemLib from "https://esm.sh/viem@2.21.5";
   // ---------- DOM wiring ----------
   window.addEventListener('DOMContentLoaded', () => {
     $('connectBtn')?.addEventListener('click', connect);
-    $('permit2Btn')?.addEventListener('click', async () => { try { await approvePermit2(); } catch (e) { log('Permit2 error', e); alert(e.message||String(e)); }});
-    $('swapBtn')?.addEventListener('click', async () => { try { await swapV4(); } catch (e) { log('Swap error', e); alert(e.shortMessage || e.message || String(e)); }});
+    $('permit2Btn')?.addEventListener('click', async () => { try { await approvePermit2(); } catch (e) { log('Permit2 error outer', e); }});
+    $('swapBtn')?.addEventListener('click', async () => { try { await swapV4(); } catch (e) { log('Swap error outer', e); }});
 
     $('flipBtn')?.addEventListener('click', () => {
       [state.from, state.to] = [state.to, state.from];
