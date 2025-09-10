@@ -3,89 +3,64 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Baht Swap – v4 (Base)</title>
+  <title>BahtSwap (Lite)</title>
   <link rel="stylesheet" href="style.css" />
+  <!-- DM Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
   <div class="app">
-    <header class="topbar">
-      <div class="brand">
-        <span class="logo">฿</span>
-        <span class="title">Baht Swap • v4</span>
-      </div>
-      <button id="connectBtn" class="btn primary">Connect Wallet</button>
+    <header>
+      <h1>BahtSwap (Lite)</h1>
+      <button id="connectBtn">Connect</button>
     </header>
 
-    <main class="card swap-card">
-      <div class="pair-row">
-        <div class="token-box">
-          <label>From</label>
-          <div class="amount-line">
-            <input id="amountIn" placeholder="0.00" inputmode="decimal" />
-            <button id="fromTokenBtn" class="token-pill">USDT</button>
-          </div>
-          <div class="sub">Balance: <span id="fromBalance">-</span></div>
+    <section class="swap-card">
+      <div class="row">
+        <label>From</label>
+        <div class="token-row">
+          <span class="token">USDT</span>
+          <input id="amountIn" type="number" step="0.000001" min="0" placeholder="0.00" />
         </div>
-
-        <button id="flipBtn" class="icon-btn" title="Flip">⇅</button>
-
-        <div class="token-box">
-          <label>To (est.)</label>
-          <div class="amount-line">
-            <input id="amountOut" placeholder="0.00" readonly />
-            <button id="toTokenBtn" class="token-pill">THBT</button>
-          </div>
-          <div class="sub">Balance: <span id="toBalance">-</span></div>
+        <div class="sub">
+          <span id="usdtBal">Balance: –</span>
+          <button id="approveBtn" class="ghost">Approve USDT</button>
         </div>
       </div>
+
+      <div class="arrow">↓</div>
 
       <div class="row">
-        <div class="slippage">
-          <span>Slippage</span>
-          <div class="slip-group">
-            <button data-slip="0.1" class="slip-btn">0.1%</button>
-            <button data-slip="0.5" class="slip-btn active">0.5%</button>
-            <button data-slip="1" class="slip-btn">1%</button>
-            <input id="slippageCustom" placeholder="custom %" />
+        <label>To</label>
+        <div class="token-row">
+          <span class="token">THBT</span>
+          <input id="amountOutEst" type="text" placeholder="Estimate on swap" disabled />
+        </div>
+        <div class="sub">
+          <span id="thbtBal">Balance: –</span>
+          <div class="slip">
+            Slippage (%): <input id="slippage" type="number" step="0.1" min="0" value="1.0" />
           </div>
         </div>
-        <div class="rate"><span id="rateText">–</span></div>
       </div>
 
-      <div class="actions">
-        <button id="permit2Btn" class="btn" disabled>Approve (Permit2)</button>
-        <button id="swapBtn" class="btn primary" disabled>Swap</button>
-      </div>
+      <button id="swapBtn" class="primary">Swap</button>
+      <p id="status" class="status"></p>
 
-      <div class="help">
-        <details>
-          <summary>Advanced</summary>
-          <div class="adv">
-            <p><b>Universal Router (v4):</b> <code id="routerAddr">0x6fF5693b99212Da76ad316178A184AB56D299b43</code></p>
-            <p><b>PoolManager (Base):</b> <code>0x498581ff718922c3f8e6a244956af099b2652b2b</code></p>
-            <p><b>Permit2:</b> <code>0x000000000022D473030F116dDEE9F6B43aC78BA3</code></p>
-            <p class="note">คำสั่งใช้ <code>V4_SWAP</code> + actions <code>[SWAP_EXACT_IN_SINGLE, SETTLE_ALL, TAKE_ALL]</code></p>
-          </div>
-        </details>
+      <div class="links">
+        <a href="https://bahtswap.net/swap" target="_blank" rel="noreferrer">Design reference</a> ·
+        <a id="txLink" href="#" target="_blank" rel="noreferrer">Last tx</a>
       </div>
-    </main>
-
-    <section class="card logs">
-      <div class="logs-head">
-        <h3>Logs / Investigate</h3>
-        <button id="clearLog" class="icon-btn" title="Clear">✕</button>
-      </div>
-      <pre id="logBox"></pre>
     </section>
 
-    <footer class="foot">
-      <span>Base Mainnet • USDT (6) ⇄ THBT (18)</span>
-      <a href="https://basescan.org/tx/0xd45fe0db1378e3abc5e34d6c9d68a4411ab9e94d5319309a5004c9db9c4c0004" target="_blank">Reference tx</a>
-      <a href="https://basescan.org/token/0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2?a=0x498581ff718922c3f8e6a244956af099b2652b2b" target="_blank">Pool Manager view</a>
+    <footer>
+      <small>Router (Uniswap v4 Universal Router): 0x6fF5693b99212Da76ad316178A184AB56D299b43<br/>
+      USDT: 0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2 · THBT: 0xdC200537D99d8b4f0C89D59A68e29b67057d2c5F · Base Mainnet</small>
     </footer>
   </div>
 
-  <!-- โหลดแอปเป็น ES Module (ภายในจะ import viem เอง) -->
+  <!-- viem + ethers-compatible tools from CDN -->
   <script type="module" src="app.js"></script>
 </body>
 </html>
