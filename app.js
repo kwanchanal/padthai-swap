@@ -1,7 +1,7 @@
 // app.js
 import {
   createPublicClient, createWalletClient, custom, formatUnits, parseUnits, encodeAbiParameters,
-  getAddress, http, toHex
+  getAddress, http, toHex, decodeErrorResult
 } from "https://esm.sh/viem@2.17.3";
 import { base } from "https://esm.sh/viem@2.17.3/chains";
 
@@ -14,17 +14,18 @@ const THBT   = getAddress("0xdC200537D99d8b4f0C89D59A68e29b67057d2c5F");
 // (optional) not used directly
 const POOL_MANAGER = getAddress("0x37cfc3ec1297e71499e846eb38710aa1a7aa4a00");
 
-// Pool params (ลองเปลี่ยน TICK_SPACING เป็น 200 ถ้า revert)
+// Pool params (ถ้าสวอปไม่ผ่าน ลองเปลี่ยน TICK_SPACING = 200)
 const FEE = 1_000_000;
 const TICK_SPACING = 0;
 
-// Minimal ABIs
+// ====== Minimal ABIs ======
 const ERC20_ABI = [
   { type:"function", name:"decimals", stateMutability:"view", inputs:[], outputs:[{type:"uint8"}]},
   { type:"function", name:"balanceOf", stateMutability:"view", inputs:[{type:"address"}], outputs:[{type:"uint256"}]},
   { type:"function", name:"allowance", stateMutability:"view", inputs:[{type:"address"},{type:"address"}], outputs:[{type:"uint256"}]},
   { type:"function", name:"approve",  stateMutability:"nonpayable", inputs:[{type:"address"},{type:"uint256"}], outputs:[{type:"bool"}] },
 ];
+
 const UNIVERSAL_ROUTER_ABI = [
   {
     type: "function",
@@ -39,7 +40,23 @@ const UNIVERSAL_ROUTER_ABI = [
   }
 ];
 
-// Helpers
+// ✅ เสริม ABI ของ error ที่เจอบ่อย เพื่อถอดรหัสข้อความให้เข้าใจง่าย
+const UNIVERSAL_ROUTER_ERRORS_ABI = [
+  { type:"error", name:"ExecutionFailed", inputs:[{name:"commandIndex", type:"uint256"}, {name:"message", type:"bytes"}] },
+  { type:"error", name:"DeadlinePassed", inputs:[] },
+  { type:"error", name:"InvalidCommandType", inputs:[{type:"uint256"}] },
+];
+
+const COMMON_SWAP_ERRORS_ABI = [
+  { type:"error", name:"TooLittleReceived", inputs:[] },
+  { type:"error", name:"TooMuchRequested", inputs:[] },       // บาง impl ใช้ชื่อคล้ายกัน
+  { type:"error", name:"InvalidTickSpacing", inputs:[] },
+  { type:"error", name:"CurrencyNotSettled", inputs:[] },
+  { type:"error", name:"Panic", inputs:[{type:"uint256"}] },  // มาตรฐาน Solidity
+  { type:"error", name:"Error", inputs:[{type:"string"}] },   // revert("reason")
+];
+
+// ====== Helpers ======
 const $ = sel => document.querySelector(sel);
 const status = (msg, cls="") => { const el=$("#status"); el.className = "status " + cls; el.textContent = msg; };
 
@@ -172,6 +189,40 @@ function encodeV4SwapExactInSingle({ amountIn, minOut, recipient }) {
   );
 }
 
+// ---------- Error decoding helper ----------
+function decodeRouterError(err) {
+  // ดึง data จากหลายชั้นของ error object
+  const data = err?.data || err?.cause?.data || err?.cause?.cause?.data || err?.executionError || null;
+  if (!data) return null;
+
+  // 1) ลองถอดด้วย error ของ Universal Router ก่อน
+  try {
+    const top = decodeErrorResult({ abi: UNIVERSAL_ROUTER_ERRORS_ABI, data });
+    // ถ้าเป็น ExecutionFailed ลองถอดซ้อนด้วย common swap errors
+    if (top?.errorName === "ExecutionFailed" && top?.args?.[1]) {
+      try {
+        const inner = decodeErrorResult({ abi: COMMON_SWAP_ERRORS_ABI, data: top.args[1] });
+        return `Router ${top.errorName} at command #${top.args[0]} → ${inner.errorName}`;
+      } catch {
+        // บางเคสเป็น revert("string")
+        try {
+          const inner = decodeErrorResult({ abi: COMMON_SWAP_ERRORS_ABI, data: top.args[1] });
+          return `Router ${top.errorName} at command #${top.args[0]} (inner)`;
+        } catch { /* ignore */ }
+      }
+    }
+    return `${top.errorName}`;
+  } catch {
+    // 2) ไม่ใช่ error ของ UR → ลองถอดแบบ generic (Error(string)/Panic)
+    try {
+      const g = decodeErrorResult({ abi: COMMON_SWAP_ERRORS_ABI, data });
+      if (g?.errorName === "Error" && g?.args?.length) return g.args[0];
+      if (g?.errorName) return g.errorName;
+    } catch { /* ignore */ }
+  }
+  return null;
+}
+
 // ---------- Swap (simulate on publicClient, then send) ----------
 async function doSwap() {
   try {
@@ -183,7 +234,7 @@ async function doSwap() {
     const slippagePct = Math.max(0, Number($("#slippage").value || "1")); // default 1%
     const amountIn = parseUnits(amountStr, usdtDec);
 
-    // ประเมิน minOut จากเรต ref-tx (จะเป๊ะขึ้นถ้าเพิ่ม quoter v4 ภายหลัง)
+    // ประเมิน minOut จากเรต ref-tx (ต่อ quoter v4 ภายหลังได้)
     const approxRateTimes1e6 = 32352156n; // 1 USDT ≈ 32.352156 THBT
     const rawEstOut = (amountIn * approxRateTimes1e6) / 10n**6n;
     const minOut = slippagePct > 0
@@ -197,7 +248,7 @@ async function doSwap() {
     const commands = "0x10"; // V4_SWAP
     const inputs0 = encodeV4SwapExactInSingle({ amountIn, minOut, recipient: account });
 
-    // ✅ ใช้ publicClient จำลอง แล้วค่อยส่งด้วย walletClient
+    // จำลองด้วย public client
     const sim = await pub.simulateContract({
       account,
       address: ROUTER,
@@ -218,7 +269,12 @@ async function doSwap() {
     status("Swap สำเร็จ ✓", "ok");
     refreshBalances();
   } catch (err) {
-    console.error(err);
-    status("Swap ล้มเหลว: " + (err?.shortMessage || err.message || err), "err");
+    console.error("Swap error:", err);
+    const decoded = decodeRouterError(err);
+    if (decoded) {
+      status("Swap ล้มเหลว: " + decoded + " (ดู Console เพิ่มเติม)", "err");
+    } else {
+      status("Swap ล้มเหลว: " + (err?.shortMessage || err?.message || "Unknown error"), "err");
+    }
   }
 }
