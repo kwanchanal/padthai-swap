@@ -1,7 +1,7 @@
 // app.js
 import {
   createPublicClient, createWalletClient, custom, formatUnits, parseUnits, encodeAbiParameters,
-  getAddress, http, decodeFunctionData, keccak256, toHex
+  getAddress, http, toHex
 } from "https://esm.sh/viem@2.17.3";
 import { base } from "https://esm.sh/viem@2.17.3/chains";
 
@@ -51,6 +51,7 @@ async function boot() {
     status("กรุณาติดตั้ง MetaMask ก่อนค่ะ", "err"); return;
   }
   pub = createPublicClient({ chain: base, transport: http() });
+  // หมายเหตุ: wallet จะผูก account จริง ๆ ตอน connect()
   wallet = createWalletClient({ chain: base, transport: custom(window.ethereum) });
 
   // read decimals once
@@ -66,10 +67,45 @@ async function boot() {
 }
 boot();
 
+// ---------- Network helper ----------
+async function ensureBaseChain() {
+  const chainIdHex = await window.ethereum.request({ method: "eth_chainId" }).catch(()=>null);
+  const isOnBase = chainIdHex && parseInt(chainIdHex, 16) === base.id;
+  if (isOnBase) return;
+
+  try {
+    await window.ethereum.request({
+      method: "wallet_switchEthereumChain",
+      params: [{ chainId: "0x2105" }], // 8453
+    });
+  } catch (e) {
+    // ถ้าไม่มี chain ให้ add ก่อน
+    if (e?.code === 4902) {
+      await window.ethereum.request({
+        method: "wallet_addEthereumChain",
+        params: [{
+          chainId: "0x2105",
+          chainName: "Base",
+          nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+          rpcUrls: ["https://mainnet.base.org"],
+          blockExplorerUrls: ["https://basescan.org"]
+        }]
+      });
+    } else {
+      throw e;
+    }
+  }
+}
+
 // ---------- Connect ----------
 async function connect() {
+  await ensureBaseChain();
   const [addr] = await window.ethereum.request({ method: "eth_requestAccounts" });
   account = getAddress(addr);
+
+  // ✅ ผูก account ให้ walletClient (แก้ error: Could not find an Account...)
+  wallet = createWalletClient({ chain: base, account, transport: custom(window.ethereum) });
+
   $("#connectBtn").textContent = account.slice(0,6) + "..." + account.slice(-4);
   status("เชื่อมต่อแล้ว");
   refreshBalances();
@@ -100,7 +136,11 @@ async function approveUSDT() {
     if (allowance > 0n) { status("USDT ถูก Approve ให้ Permit2 แล้ว ✓", "ok"); return; }
 
     const hash = await wallet.writeContract({
-      address: USDT, abi: ERC20_ABI, functionName: "approve", args:[PERMIT2, 2n**256n - 1n]
+      account, // ✅ สำคัญ
+      address: USDT,
+      abi: ERC20_ABI,
+      functionName: "approve",
+      args:[PERMIT2, 2n**256n - 1n]
     });
     $("#txLink").href = `https://basescan.org/tx/${hash}`;
     status("กำลังรอ Confirm บนเครือข่าย...");
@@ -119,7 +159,6 @@ async function approveUSDT() {
  *  - 0x0c SETTLE_ALL
  *  - 0x0f TAKE_ALL
  * รูปแบบ params ใช้ struct แบบเดียวกับที่ Universal Router คาดหวัง
- * อ้างอิง: Uniswap Universal Router v2 + v4 docs (V4_SWAP) และหน้า Actions
  */
 function encodeV4SwapExactInSingle({ amountIn, minOut, recipient }) {
   // 1) actions: bytes = [0x06, 0x0c, 0x0f]
@@ -129,33 +168,19 @@ function encodeV4SwapExactInSingle({ amountIn, minOut, recipient }) {
   // 2) params: bytes[] (3 ชิ้น) — ตามลำดับของ actions
   //    2.1) SWAP_EXACT_IN_SINGLE params
   //
-  // struct PoolKey {
-  //   address currency0; address currency1; uint24 fee; int24 tickSpacing; address hooks;
-  // }
+  // struct PoolKey { address currency0; address currency1; uint24 fee; int24 tickSpacing; address hooks; }
+  // struct ExactInputSingleParams { PoolKey key; bool zeroForOne; uint128 amountIn; uint128 amountOutMinimum; bytes hookData; }
   //
-  // struct ExactInputSingleParams {
-  //   PoolKey key; bool zeroForOne; uint128 amountIn; uint128 amountOutMinimum; bytes hookData;
-  // }
-  //
-  // หมายเหตุ: สำหรับคู่ USDT→THBT เราจะคาดว่า order เป็น (USDT, THBT) และ zeroForOne = true
-  // หากสวอป revert ให้ลองสลับ zeroForOne หรือ tickSpacing = 200
-  const poolKey = encodeAbiParameters(
-    [
-      { type: "address" }, { type: "address" }, { type: "uint24" }, { type: "int24" }, { type: "address" }
-    ],
-    [USDT, THBT, FEE, TICK_SPACING, "0x0000000000000000000000000000000000000000"]
-  );
-
+  // หมายเหตุ: USDT→THBT คาด order เป็น (USDT, THBT) และ zeroForOne = true
   const swapParams = encodeAbiParameters(
     [
-      // PoolKey (as bytes) is re-encoded as tuple to align with router expectation:
       { type: "tuple", components: [
         { type:"address" }, { type:"address" }, { type:"uint24" }, { type:"int24" }, { type:"address" }
       ]},
-      { type: "bool" },     // zeroForOne
-      { type: "uint128" },  // amountIn
-      { type: "uint128" },  // amountOutMinimum
-      { type: "bytes" }     // hookData
+      { type: "bool" },
+      { type: "uint128" },
+      { type: "uint128" },
+      { type: "bytes" }
     ],
     [
       [USDT, THBT, FEE, TICK_SPACING, "0x0000000000000000000000000000000000000000"],
@@ -166,23 +191,15 @@ function encodeV4SwapExactInSingle({ amountIn, minOut, recipient }) {
     ]
   );
 
-  //    2.2) SETTLE_ALL params -> (address currency, bool payerIsUser, uint128 amount?) – ใช้เวอร์ชันที่ notional=amountIn
-  // เรียก settleAll(USDT) เพื่อเคลียร์ IOU ขาเข้าให้ Router ไปดึงจาก user ผ่าน Permit2
+  //    2.2) SETTLE_ALL params -> (address currency, bool payerIsUser)
   const settleAll = encodeAbiParameters(
-    [
-      { type: "address" }, // currency (USDT)
-      { type: "bool" }     // payerIsUser
-    ],
+    [{ type: "address" }, { type: "bool" }],
     [USDT, true]
   );
 
   //    2.3) TAKE_ALL params -> (address currency, address recipient)
-  // เอา THBT ทั้งหมดที่ Router ถือส่งให้ผู้ใช้
   const takeAll = encodeAbiParameters(
-    [
-      { type: "address" }, // currency (THBT)
-      { type: "address" }  // recipient
-    ],
+    [{ type: "address" }, { type: "address" }],
     [THBT, recipient]
   );
 
@@ -207,13 +224,11 @@ async function doSwap() {
     const slippagePct = Math.max(0, Number($("#slippage").value || "0"));
     const amountIn = parseUnits(amountStr, usdtDec);
 
-    // สำหรับ MVP: ตั้ง minOut = 0 (ปลอดภัยน้อยกว่า แต่ติดน้อยสุด); ถ้ากังวล slippage ให้ใช้ minOut = amountIn * priceEst * (1 - slippage)
-    // คุณสามารถเอา “สัดส่วน” จาก ref-tx 1 USDT ≈ 32.3521 THBT มาคูณคร่าวๆ
-    // (บน UI จะโชว์ “Estimate on swap” เฉยๆ แต่ตัวเลขที่บังคับใช้คือ minOut)
-    const approxRateTimes1e6 = 32352156n; // อิง ref tx 1 USDT → ~32.352156 THBT
+    // MVP: ประเมิน minOut แบบคร่าว ๆ จากเรต ref-tx
+    const approxRateTimes1e6 = 32352156n; // 1 USDT → ~32.352156 THBT
     const rawEstOut = (amountIn * approxRateTimes1e6) / 10n**6n;
     const minOut = slippagePct > 0
-      ? (rawEstOut * BigInt(Math.floor((100 - slippagePct) * 1000)) / 100000n) // (100 - s)% ด้วย 1e3 precision
+      ? (rawEstOut * BigInt(Math.floor((100 - slippagePct) * 1000)) / 100000n)
       : 0n;
 
     $("#amountOutEst").value = formatUnits(rawEstOut, thbtDec);
@@ -228,22 +243,21 @@ async function doSwap() {
     });
 
     const hash = await wallet.writeContract({
+      account, // ✅ สำคัญ
       address: ROUTER,
       abi: UNIVERSAL_ROUTER_ABI,
       functionName: "execute",
       args: [commands, [inputs0], deadline],
-      // payables: none (เราใช้ USDT -> THBT)
     });
 
     $("#txLink").href = `https://basescan.org/tx/${hash}`;
     status("กำลังรอยืนยันบนเครือข่าย...");
 
-    const rc = await pub.waitForTransactionReceipt({ hash });
+    await pub.waitForTransactionReceipt({ hash });
     status("Swap สำเร็จ ✓", "ok");
     refreshBalances();
   } catch(err){
     console.error(err);
-    // hint กรณี “decode signature 0x486aa307” หรือ invalid params → ลองแก้ tickSpacing = 200 และ/หรือสลับ zeroForOne
     status("Swap ล้มเหลว: " + (err?.shortMessage || err.message || err), "err");
   }
 }
