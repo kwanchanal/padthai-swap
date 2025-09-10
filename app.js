@@ -16,7 +16,7 @@ const POOL_MANAGER = getAddress("0x37cfc3ec1297e71499e846eb38710aa1a7aa4a00");
 
 // ค่าพารามิเตอร์ pool key ที่ใช้ใน reference tx (ดูจาก calldata: 0x0f4240)
 const FEE = 1_000_000;      // uint24 (v4 ใช้หน่วย 1e-6)
-const TICK_SPACING = 0;     // ในคู่ไม่มี hook พิเศษ ใช้ 0 (=อิงค่า default ใน pool); ถ้าสวอปไม่ผ่านให้ลอง 200
+const TICK_SPACING = 0;     // ถ้าสวอปไม่ผ่าน ลองเปลี่ยนเป็น 200
 
 // Minimal ABIs we need
 const ERC20_ABI = [
@@ -214,17 +214,18 @@ function encodeV4SwapExactInSingle({ amountIn, minOut, recipient }) {
   return input;
 }
 
-// ---------- Swap ----------
+// ---------- Swap (simulate first, then send) ----------
 async function doSwap() {
   try {
     if (!account) await connect();
 
     const amountStr = $("#amountIn").value.trim();
     if (!amountStr || Number(amountStr) <= 0) { status("ใส่จำนวน USDT ก่อนนะคะ", "warn"); return; }
-    const slippagePct = Math.max(0, Number($("#slippage").value || "0"));
+    // ตั้งค่าเริ่มต้น slippage = 1% ถ้าไม่ได้กรอก
+    const slippagePct = Math.max(0, Number($("#slippage").value || "1"));
     const amountIn = parseUnits(amountStr, usdtDec);
 
-    // MVP: ประเมิน minOut แบบคร่าว ๆ จากเรต ref-tx
+    // ประเมิน minOut แบบคร่าว ๆ จากเรต ref-tx (แนะนำต่อ quoter v4 ภายหลัง)
     const approxRateTimes1e6 = 32352156n; // 1 USDT → ~32.352156 THBT
     const rawEstOut = (amountIn * approxRateTimes1e6) / 10n**6n;
     const minOut = slippagePct > 0
@@ -233,7 +234,7 @@ async function doSwap() {
 
     $("#amountOutEst").value = formatUnits(rawEstOut, thbtDec);
 
-    status("กำลังส่งธุรกรรม Swap...");
+    status("กำลังจำลองธุรกรรม (simulate) ...");
     const deadline = BigInt(Math.floor(Date.now()/1000) + 60 * 10); // 10 นาที
 
     // commands: 0x10 (V4_SWAP)
@@ -242,13 +243,19 @@ async function doSwap() {
       amountIn, minOut, recipient: account
     });
 
-    const hash = await wallet.writeContract({
-      account, // ✅ สำคัญ
+    // ✅ จำลองก่อน เพื่อให้ได้ gas/params ที่แม่น → MM จะไม่เตือน Inaccurate fee
+    const sim = await wallet.simulateContract({
+      account,
       address: ROUTER,
       abi: UNIVERSAL_ROUTER_ABI,
       functionName: "execute",
       args: [commands, [inputs0], deadline],
+      value: 0n,
+      chain: base
     });
+
+    status("กำลังส่งธุรกรรม Swap...");
+    const hash = await wallet.writeContract(sim.request); // ส่งด้วย request จาก simulation
 
     $("#txLink").href = `https://basescan.org/tx/${hash}`;
     status("กำลังรอยืนยันบนเครือข่าย...");
@@ -258,6 +265,7 @@ async function doSwap() {
     refreshBalances();
   } catch(err){
     console.error(err);
+    // ถ้ายังเตือน likely-to-fail ลองเพิ่ม slippage เป็น 2% หรือเปลี่ยน TICK_SPACING = 200
     status("Swap ล้มเหลว: " + (err?.shortMessage || err.message || err), "err");
   }
 }
